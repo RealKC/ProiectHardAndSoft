@@ -3,9 +3,12 @@ import cv2
 from multiprocessing import Process, Queue
 import base64
 import _thread
+
+import Adafruit_BBIO.ADC as ADC
 import rel
 import websocket
 from threading import Thread
+
 
 class ValueMessage:
     type: str
@@ -15,37 +18,50 @@ class ValueMessage:
         self.type = type
         self.value = value
 
+
 def on_message(ws, message):
     print(message)
+
 
 def on_error(ws, error):
     print(error)
 
+
 def on_close(ws, close_status_code, close_msg):
     print("### closed ###")
 
+
 def upload_task(ws, queue):
-     while True:
+    while True:
         try:
             to_upload = queue.get()
-            print(to_upload.__class__.__name__)
+
             if isinstance(to_upload, ValueMessage):
                 msgtyp = to_upload.type
-                value = str(to_upload.value).encode()
+                value = str(to_upload.value).encode(encoding="utf-8")
                 if msgtyp == "light":
-                    tag = 'l'
+                    tag = "l"
                 elif msgtyp == "temp":
-                    tag = 't'
+                    tag = "t"
                 elif msgtyp == "sun1":
-                    tag = 'x'
+                    tag = "x"
                 elif msgtyp == "sun2":
-                    tag = 'y'
-                message = bytes(tag, 'utf-8') + value
-                ws.send(message)
+                    tag = "y"
+
+                message = bytes(tag, "utf-8") + value
+
+                ws.send(
+                    message,
+                    websocket.ABNF.OPCODE_BINARY,
+                )
             else:
-                ws.send(bytes('i', 'utf-8') + to_upload.tobytes(), websocket.ABNF.OPCODE_BINARY)
+                ws.send(
+                    bytes("i", "utf-8") + to_upload.tobytes(),
+                    websocket.ABNF.OPCODE_BINARY,
+                )
         except Exception as e:
-            print(f'do_upload got exception: {e}\nexiting...')
+            print(f"do_upload got exception: {e}\nexiting...")
+
 
 def on_open(ws, queue: Queue):
     print("Opened connection")
@@ -53,28 +69,30 @@ def on_open(ws, queue: Queue):
 
 
 def do_upload(queue: Queue):
-    #websocket.enableTrace(True)
+    # websocket.enableTrace(True)
     ws = websocket.WebSocketApp(
-      "wss://houseapi.pushi.party/?key=RANDOM_STUFF",
-      on_open=lambda ws: on_open(ws, queue),
-      on_message=on_message,
-      on_error=on_error,
-      on_close=on_close
+        "wss://houseapi.pushi.party/?key=RANDOM_STUFF",
+        on_open=lambda ws: on_open(ws, queue),
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close,
     )
 
     ws.run_forever()  # Set disp
 
+
 encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
+
 
 def do_capture(queue: Queue):
     camera = cv2.VideoCapture(0, apiPreference=cv2.CAP_V4L2)
     camera.setExceptionMode(True)
-    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc("M", "J", "P", "G"))
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 504)
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 896)
 
     while True:
-#        time.sleep(0.1)
+        # time.sleep(0.1)
 
         try:
             success, image = camera.read()
@@ -82,9 +100,9 @@ def do_capture(queue: Queue):
             if not success:
                 continue
 
-            success, buffer = cv2.imencode('.jpg', image, encode_param)
+            success, buffer = cv2.imencode(".jpg", image, encode_param)
         except Exception as e:
-            print(f'do_capture got exception: {e}, {e.code}')
+            print(f"do_capture got exception: {e}, {e.code}")
             camera.release()
         try:
             queue.put_nowait(buffer)
@@ -92,20 +110,25 @@ def do_capture(queue: Queue):
             print(e)
             continue
 
-def do_read_adc(queue: Queue):
-    import Adafruit_BBIO.ADC as ADC
 
+def do_read_adc(queue: Queue):
     outside_1 = "P9_39"
     outside_2 = "P9_40"
     inside = "P9_41"
     thermistor = "P9_42"
     ADC.setup()
+
     while True:
         time.sleep(0.1)
         outside_1_value = ADC.read_raw(outside_1) / 4095.0
         outside_2_value = ADC.read_raw(outside_2) / 4095.0
         inside_value = ADC.read_raw(inside) / 4095.0
-        themp = ADC.read_raw(thermistor) / 4095.0
+        themp = ADC.read_raw(thermistor)
+
+        # outside_1_value = 0.3
+        # outside_2_value = 0.4
+        # inside_value = 0.5
+        # themp = 0.6
 
         try:
             queue.put_nowait(ValueMessage("light", inside_value))
@@ -115,12 +138,13 @@ def do_read_adc(queue: Queue):
         except:
             continue
 
+
 def main():
     queue = Queue()
 
-    for func in [do_upload, do_capture]:
+    for func in [do_upload, do_read_adc]:  # do_capture
         Process(target=func, args=(queue,)).start()
 
-if __name__ == '__main__':
-    main()
 
+if __name__ == "__main__":
+    main()
