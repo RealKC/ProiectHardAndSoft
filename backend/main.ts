@@ -38,9 +38,13 @@ declare module "@fastify/secure-session" {
   }
 }
 
-let currentLightLevel = Math.random();
-let currentSunPowerLevel = Math.random();
-let currentTemperature = Math.floor(Math.random() * (32 - 17 + 1) + 17);
+let currentLightLevel = 0;
+let currentSunPowerLevel = 0;
+
+let currentSunPowerLevel1 = 0;
+let currentSunPowerLevel2 = 0;
+
+let currentTemperature = 0;
 
 function toPercents(value: number) {
   return (value * 100).toFixed(2) + "%";
@@ -121,6 +125,8 @@ function formatSunObservation(value: number): string {
 function getFinalPromptContext(intent: IntentsResponse): string {
   switch (intent.intent) {
     case "bedtime-story":
+      sendBeagleMessage("lights_off");
+
       return `
         Inform the user you closed the lights in the house.
         Tell a short bedtime story with a nice ending.
@@ -159,6 +165,7 @@ function getFinalPromptContext(intent: IntentsResponse): string {
       if (intent.data.type === "value") {
         return `The battery level currently is 73.23%`;
       }
+
       return `
         Inform the user that the sun battery level chart for the given period/date is presented right now.
         Don't say anything else about the chart information.
@@ -207,13 +214,57 @@ function getFinalPromptContext(intent: IntentsResponse): string {
 
     case "lights":
       if (intent.intensity === "on") {
+        sendBeagleMessage("lights_on");
+
         return "Say that the lights have been turned on right now";
       }
+
+      if (intent.intensity === "auto") {
+        sendBeagleMessage("lights_auto");
+
+        return "Say that the lights are controlled automatically now";
+      }
+
+      sendBeagleMessage("lights_off");
 
       return "Say that the lights have been turned off right now";
 
     case "describe-photo":
       return "Describe the photo.";
+
+    case "barrier":
+      if (intent.intensity === "on") {
+        sendBeagleMessage("barrier_on");
+
+        return "Say that the barrier have been opened right now";
+      }
+
+      if (intent.intensity === "auto") {
+        sendBeagleMessage("barrier_auto");
+
+        return "Say that the barrier is now controlled automatically";
+      }
+
+      sendBeagleMessage("barrier_off");
+
+      return "Say that the barrier has been closed right now";
+
+    case "blinds":
+      if (intent.intensity === "on") {
+        sendBeagleMessage("blinds_on");
+
+        return "Say that the blinds have been opened right now";
+      }
+
+      if (intent.intensity === "auto") {
+        sendBeagleMessage("blinds_auto");
+
+        return "Say that the blinds is now controlled automatically";
+      }
+
+      sendBeagleMessage("blinds_off");
+
+      return "Say that the blinds has been closed right now";
 
     case "parking-logs":
       return "Say you have the parking logs";
@@ -334,7 +385,7 @@ async function test(image: string) {
 }
 
 const fastify = Fastify({
-  logger: true,
+  logger: false,
 });
 
 fastify.register(fastifyCookie);
@@ -363,6 +414,14 @@ fastify.register(websocket);
 let liveFeedListeners: WebSocket[] = [];
 
 const qrClientsCodes = new Map<string, WebSocket>();
+
+let openBeagleSockets: WebSocket[] = [];
+
+function sendBeagleMessage(msg: string) {
+  openBeagleSockets = openBeagleSockets.filter((s) => s.readyState === s.OPEN);
+
+  openBeagleSockets.forEach((s) => s.send(msg));
+}
 
 async function decodeQR(rawImg: Buffer): Promise<string | undefined | null> {
   try {
@@ -402,15 +461,11 @@ async function checkQrCode(image: Buffer) {
 }
 
 function emitLiveImage(imageBytes: Uint8Array) {
-  const openLiveFeedListeners = liveFeedListeners.filter(
-    (s) => s.readyState === s.OPEN
-  );
+  liveFeedListeners = liveFeedListeners.filter((s) => s.readyState === s.OPEN);
 
-  openLiveFeedListeners.forEach((s) => {
+  liveFeedListeners.forEach((s) => {
     s.send(imageBytes);
   });
-
-  liveFeedListeners = openLiveFeedListeners;
 }
 
 // async function createFakeData(fileName: string, fn: () => string | number) {
@@ -509,7 +564,9 @@ fastify.register(async function (fastify) {
       websocket: true,
     },
     (socket, request) => {
-      const parsedQuery = z.object({ key: z.string() }).parse(request.query);
+      const parsedQuery = z
+        .object({ key: z.string(), type: z.string().optional() })
+        .parse(request.query);
 
       if (parsedQuery.key !== ALLOWED_KEY) {
         socket.close();
@@ -517,15 +574,11 @@ fastify.register(async function (fastify) {
         throw "";
       }
 
-      socket.on("message", async (message, isBinary) => {
-        await fs.appendFile(
-          "./data/lights.csv",
-          `${Date.now()},${Math.random()}\n`,
-          {
-            encoding: "utf-8",
-          }
-        );
+      if (parsedQuery.type === "beagle") {
+        openBeagleSockets.push(socket);
+      }
 
+      socket.on("message", async (message, isBinary) => {
         if (isBinary && message instanceof Buffer) {
           // messages from beagle
           const messageType = String.fromCharCode(message[0]);
@@ -539,16 +592,45 @@ fastify.register(async function (fastify) {
 
               return emitLiveImage(latestImageBytes);
 
-            case "l":
-              await fs.appendFile(
-                "./data/lights.csv",
-                `${Date.now()},${Math.random()}`,
-                {
-                  encoding: "utf-8",
-                }
+            case "l": {
+              const lightStr = String.fromCharCode(...message).slice(1);
+
+              currentLightLevel = parseFloat(lightStr);
+
+              break;
+            }
+
+            case "x": {
+              const sun1Str = String.fromCharCode(...message).slice(1);
+
+              currentSunPowerLevel1 = parseFloat(sun1Str);
+
+              currentSunPowerLevel =
+                (currentSunPowerLevel1 + currentSunPowerLevel2) / 2;
+
+              break;
+            }
+
+            case "y": {
+              const sun2Str = String.fromCharCode(...message).slice(1);
+
+              currentSunPowerLevel2 = parseFloat(sun2Str);
+
+              currentSunPowerLevel =
+                (currentSunPowerLevel1 + currentSunPowerLevel2) / 2;
+
+              break;
+            }
+
+            case "t": {
+              const tempStr = String.fromCharCode(...message).slice(1);
+
+              currentTemperature = Math.round(
+                parseFloat(tempStr) * 0.03 - 31.94
               );
 
               break;
+            }
           }
         }
 

@@ -307,8 +307,16 @@ const examples = [
     body: "Show me the parking logs",
   },
   {
-    title: "🪫 Battery chart",
-    body: "How does the battery perform between 10 March 2024 and 20 May 2024?",
+    title: "🚪 Barriers",
+    body: "Open the barriers",
+  },
+  {
+    title: "🌑 Blinds",
+    body: "Close the blinds",
+  },
+  {
+    title: "💡 Light level",
+    body: "Current light level inside the house",
   },
 ];
 

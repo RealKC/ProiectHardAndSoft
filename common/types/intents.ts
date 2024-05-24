@@ -100,14 +100,56 @@ export const ChartOrValue = z.discriminatedUnion("type", [
 
 export const LightsResponse = z.object({
   intent: z.literal("lights"),
-  intensity: z.enum(["on", "off"]),
+  intensity: z.enum(["on", "auto", "off"]),
 }).describe(`
   turn on the lights
   turn off the lights
+  turn on the lights automatically
+  make lights go auto 
+  make lights go automatic
   lights on
   lights off
+  lights auto
   kill the lights
   make it so its no longer dark
+  control the lights now
+  automatic lights
+`);
+
+export const BarrierResponse = z.object({
+  intent: z.literal("barrier"),
+  intensity: z.enum(["on", "auto", "off"]),
+}).describe(`
+  turn on the barrier
+  turn off the barrier
+  turn on the barrier automatically
+  make barrier go auto 
+  make barrier go automatic
+  barrier on
+  barrier off
+  barrier auto
+  open barrier
+  close barrier
+  control the barrier now
+  automatic barrier
+`);
+
+export const BlindsResponse = z.object({
+  intent: z.literal("blinds"),
+  intensity: z.enum(["on", "auto", "off"]),
+}).describe(`
+  turn on the blinds
+  turn off the blinds
+  turn on the blinds automatically
+  make blinds go auto 
+  make blinds go automatic
+  blinds on
+  blinds off
+  blinds auto
+  open blinds
+  close blinds
+  control the blinds now
+  automatic blinds
 `);
 
 export const BatteryResponse = z.object({
@@ -255,6 +297,8 @@ export const Response = z
     HouseLightingResponse,
     StartAlarmResponse,
     BedtimeStoryResponse,
+    BarrierResponse,
+    BlindsResponse,
   ])
   .describe("A schema definition for responses");
 
@@ -270,6 +314,8 @@ export const IntentsSchema = {
   StartAlarmResponse,
   WelcomeResponse,
   BatteryResponse,
+  BarrierResponse,
+  BlindsResponse,
   LiveFeedResponse,
   ParkingLogsResponse,
   ChartOrValue,
