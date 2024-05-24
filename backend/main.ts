@@ -456,6 +456,8 @@ async function checkQrCode(image: Buffer) {
   const socket = qrClientsCodes.get(result);
 
   if (socket && socket.readyState === socket.OPEN) {
+    sendBeagleMessage("lights_on");
+
     socket.send(JSON.stringify({ key: ALLOWED_KEY }));
   }
 }
@@ -676,7 +678,7 @@ fastify.post("/", async function handler(request, reply) {
 
   const intent = await getIntent(body.prompt);
 
-  const useHardcodedImage = true;
+  const useHardcodedImage = false;
 
   if (
     intent.intent === "describe-photo" &&

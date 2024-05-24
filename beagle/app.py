@@ -3,6 +3,7 @@ import cv2
 from multiprocessing import Process, Queue
 import base64
 import _thread
+import os
 
 import Adafruit_BBIO.ADC as ADC
 import rel
@@ -21,10 +22,13 @@ class ValueMessage:
 
 def on_message(ws, message):
     if message == "lights_on":
+        os.system("bash /home/debian/ProiectHardAndSoft/beagle/init_pwm.sh")
         return
     elif message == "lights_auto":
+        os.system('bash -c "echo 0 > /sys/class/pwm/pwmchip0/pwm0/enable"')
         return
     elif message == "lights_off":
+        os.system('bash -c "echo 0 > /sys/class/pwm/pwmchip0/pwm0/enable"')
         return
     elif message == "barrier_on":
         return
@@ -33,6 +37,7 @@ def on_message(ws, message):
     elif message == "barrier_off":
         return
     elif message == "blinds_on":
+        os.system("node /home/debian/ProiectHardAndSoft/beagle/stepper.js")
         return
     elif message == "blinds_auto":
         return
@@ -111,7 +116,7 @@ def do_capture(queue: Queue):
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 896)
 
     while True:
-        # time.sleep(0.1)
+        time.sleep(0.1)
 
         try:
             success, image = camera.read()
@@ -161,7 +166,7 @@ def do_read_adc(queue: Queue):
 def main():
     queue = Queue()
 
-    for func in [do_upload, do_read_adc]:  # do_capture
+    for func in [do_capture, do_upload, do_read_adc]:  # do_capture
         Process(target=func, args=(queue,)).start()
 
 
