@@ -20,6 +20,25 @@ class ValueMessage:
 
 
 def on_message(ws, message):
+    if message == "lights_on":
+        return
+    elif message == "lights_auto":
+        return
+    elif message == "lights_off":
+        return
+    elif message == "barrier_on":
+        return
+    elif message == "barrier_auto":
+        return
+    elif message == "barrier_off":
+        return
+    elif message == "blinds_on":
+        return
+    elif message == "blinds_auto":
+        return
+    elif message == "blinds_off":
+        return
+
     print(message)
 
 
@@ -71,7 +90,7 @@ def on_open(ws, queue: Queue):
 def do_upload(queue: Queue):
     # websocket.enableTrace(True)
     ws = websocket.WebSocketApp(
-        "wss://houseapi.pushi.party/?key=RANDOM_STUFF",
+        "wss://houseapi.pushi.party/?key=RANDOM_STUFF&type=beagle",
         on_open=lambda ws: on_open(ws, queue),
         on_message=on_message,
         on_error=on_error,
@@ -128,7 +147,7 @@ def do_read_adc(queue: Queue):
         # outside_1_value = 0.3
         # outside_2_value = 0.4
         # inside_value = 0.5
-        # themp = 0.6
+        # themp = 2000
 
         try:
             queue.put_nowait(ValueMessage("light", inside_value))
